@@ -150,7 +150,7 @@ void setup()
   Serial.begin(115200);
   Serial.println();
   Serial.println("Booting");
-  
+
   pinMode(P_LED, OUTPUT);
   digitalWrite(P_LED, HIGH);
   pinMode(P_SWI, OUTPUT);
@@ -528,21 +528,23 @@ void alarm_visuals()
   }
   else if (alarming_alarm != ALARM_COUNT)
   {
-    // reset visuals
-    for (uint8_t i = 0; i < 12; i++)
-      led_colours[i] = 0;
+    resetLeds();
 
     alarming_alarm = ALARM_COUNT;
   }
 
   last_alarmVisuals = millis();
 }
+
+int torching = 0;
 void button_check()
 {
   if (buttonPressed)
     buttonPressedCount++;
-  else
+  else if (buttonPressedCount)
+  {
     buttonPressedCount = 0;
+  }
 
   if (buttonPressedCount)
   {
@@ -553,6 +555,17 @@ void button_check()
   {
     SSD1306_Utils::write_char(screen, 109, 12, icon_font, (char)Icons::Empty);
     SSD1306_Utils::write_string(screen, 109, 24, small_font, "   ");
+  }
+
+  if (buttonPressedCount == 1)
+  {
+    resetLeds();
+    torching = 0;
+  }
+  if (buttonPressedCount && buttonPressedCount % 5 == 0)
+  {
+    torching++;
+    setTorch();
   }
 
   last_buttonCheck = millis();
@@ -586,8 +599,7 @@ ApiMethodResponse api_toggleColourCycle(String &requestBody)
 }
 ApiMethodResponse api_resetColour(String &requestBody)
 {
-  for (uint16_t i = 0; i < NUM_LED_COLORS; i++)
-    led_colours[i] = 0;
+  resetLeds();
 
   return ApiMethodResponse();
 }
@@ -748,4 +760,94 @@ void saveAlarms()
   auto f = SPIFFS.open(ALARM_FILE_NAME, "w");
   f.print(json);
   f.close();
+}
+
+void resetLeds()
+{
+  for (uint16_t i = 0; i < NUM_LED_COLORS; i++)
+    led_colours[i] = 0;
+}
+
+void setTorch()
+{
+  switch (torching)
+  {
+  case 1:
+    for (int i = 0; i < NUM_LED_COLORS; i++)
+    {
+      if ((i / 4) % 3 == 0) // every 3rd led
+      if (i % 4 == 3) // white only
+        led_colours[i] = 1;
+    }
+    break;
+
+  case 2:
+    for (int i = 0; i < NUM_LED_COLORS; i++)
+    {
+      if ((i / 4) % 3 == 0) // every 3rd led
+      if (i % 4 == 3) // white only
+        led_colours[i] = 3;
+    }
+    break;
+  case 3:
+    for (int i = 0; i < NUM_LED_COLORS; i++)
+    {
+      if (i % 4 == 3) // white only
+        led_colours[i] = 1;
+    }
+    break;
+
+  case 4:
+    for (int i = 0; i < NUM_LED_COLORS; i++)
+    {
+      if (i % 4 == 3) // white only
+        led_colours[i] = 3;
+    }
+    break;
+  case 5:
+    for (int i = 0; i < NUM_LED_COLORS; i++)
+    {
+      if (i % 4 == 3) // white only
+        led_colours[i] = 5;
+    }
+    break;
+  case 6:
+    for (int i = 0; i < NUM_LED_COLORS; i++)
+    {
+      if (i % 4 == 3) // white only
+        led_colours[i] = 10;
+    }
+    break;
+  case 7:
+    for (int i = 0; i < NUM_LED_COLORS; i++)
+    {
+      if (i % 4 == 3) // white only
+        led_colours[i] = 20;
+    }
+    break;
+  case 8:
+    for (int i = 0; i < NUM_LED_COLORS; i++)
+    {
+      if (i % 4 == 3) // white only
+        led_colours[i] = 50;
+    }
+    break;
+  case 9:
+    for (int i = 0; i < NUM_LED_COLORS; i++)
+    {
+      if (i % 4 == 3) // white only
+        led_colours[i] = 128;
+    }
+    break;
+  case 10:
+
+    for (int i = 0; i < NUM_LED_COLORS; i++)
+    {
+      if (i % 4 == 3) // white only
+        led_colours[i] = 255;
+    }
+    break;
+  default:
+    break;
+  }
 }
