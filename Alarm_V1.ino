@@ -520,13 +520,12 @@ void alarm_visuals()
 {
   if (alarming)
   {
-    for (uint8_t i = 0; i < 12; i++)
-    {
-      led_colours[i] = led_colours[i] == 0 ? 1 : 0;
-    }
-    // do visuals
+    if (alarms[alarming_alarm].Duration < 4) // minimum sunrise is 1 hour, flash if less
+      alarm_flash();
+    else
+      alarm_sunrise();
   }
-  else if (alarming_alarm != ALARM_COUNT)
+  else if (alarming_alarm != ALARM_COUNT) // end of the alarm (no longer alarming but not reset)
   {
     resetLeds();
 
@@ -557,15 +556,27 @@ void button_check()
     SSD1306_Utils::write_string(screen, 109, 24, small_font, "   ");
   }
 
-  if (buttonPressedCount == 1)
+  if (alarming)
   {
-    resetLeds();
-    torching = 0;
+    if (buttonPressedCount >= (2500 / INTERVAL_BUTTONCHECK)) // 2.5 seconds to cancel alarm
+    {
+      alarming_remainder = 0;
+      alarming = false;
+      buttonPressedCount = 0;
+    }
   }
-  if (buttonPressedCount && buttonPressedCount % 5 == 0)
+  else
   {
-    torching++;
-    setTorch();
+    if (buttonPressedCount == 1)
+    {
+      resetLeds();
+      torching = 0;
+    }
+    if (buttonPressedCount && buttonPressedCount % 5 == 0)
+    {
+      torching++;
+      setTorch();
+    }
   }
 
   last_buttonCheck = millis();
@@ -776,17 +787,25 @@ void setTorch()
     for (int i = 0; i < NUM_LED_COLORS; i++)
     {
       if ((i / 4) % 3 == 0) // every 3rd led
-      if (i % 4 == 3) // white only
-        led_colours[i] = 1;
+      {
+        if (i % 4 == 3) // white only
+          led_colours[i] = 1;
+      }
+      else
+        led_colours[i] = 0;
     }
     break;
 
   case 2:
     for (int i = 0; i < NUM_LED_COLORS; i++)
     {
-      if ((i / 4) % 3 == 0) // every 3rd led
-      if (i % 4 == 3) // white only
-        led_colours[i] = 3;
+      if ((i / 4) % 2 == 0) // every 2nd led
+      {
+        if (i % 4 == 3) // white only
+          led_colours[i] = 1;
+      }
+      else
+        led_colours[i] = 0;
     }
     break;
   case 3:
@@ -794,6 +813,8 @@ void setTorch()
     {
       if (i % 4 == 3) // white only
         led_colours[i] = 1;
+      else
+        led_colours[i] = 0;
     }
     break;
 
@@ -802,6 +823,8 @@ void setTorch()
     {
       if (i % 4 == 3) // white only
         led_colours[i] = 3;
+      else
+        led_colours[i] = 0;
     }
     break;
   case 5:
@@ -809,6 +832,8 @@ void setTorch()
     {
       if (i % 4 == 3) // white only
         led_colours[i] = 5;
+      else
+        led_colours[i] = 0;
     }
     break;
   case 6:
@@ -816,6 +841,8 @@ void setTorch()
     {
       if (i % 4 == 3) // white only
         led_colours[i] = 10;
+      else
+        led_colours[i] = 0;
     }
     break;
   case 7:
@@ -823,13 +850,17 @@ void setTorch()
     {
       if (i % 4 == 3) // white only
         led_colours[i] = 20;
+      else
+        led_colours[i] = 0;
     }
     break;
   case 8:
     for (int i = 0; i < NUM_LED_COLORS; i++)
     {
       if (i % 4 == 3) // white only
-        led_colours[i] = 50;
+        led_colours[i] = 64;
+      else
+        led_colours[i] = 0;
     }
     break;
   case 9:
@@ -837,17 +868,73 @@ void setTorch()
     {
       if (i % 4 == 3) // white only
         led_colours[i] = 128;
+      else
+        led_colours[i] = 0;
     }
     break;
   case 10:
-
     for (int i = 0; i < NUM_LED_COLORS; i++)
     {
       if (i % 4 == 3) // white only
         led_colours[i] = 255;
+      else
+        led_colours[i] = 0;
     }
     break;
+
+  case 14:
+    for (int i = 0; i < NUM_LED_COLORS; i++)
+    {
+      if (i % 4 == 3) // white only
+        led_colours[i] = 255;
+      else
+        led_colours[i] = 32;
+    }
+    break;
+  case 16:
+    for (int i = 0; i < NUM_LED_COLORS; i++)
+    {
+      if (i % 4 == 3) // white only
+        led_colours[i] = 255;
+      else
+        led_colours[i] = 64;
+    }
+    break;
+  case 18:
+    for (int i = 0; i < NUM_LED_COLORS; i++)
+    {
+      if (i % 4 == 3) // white only
+        led_colours[i] = 255;
+      else
+        led_colours[i] = 128;
+    }
+    break;
+    // Power supply issues at 100%
+    // case 20:
+    //   for (int i = 0; i < NUM_LED_COLORS; i++)
+    //   {
+    //       led_colours[i] = 255;
+    //   }
+    //   break;
+
   default:
     break;
   }
+}
+
+void alarm_flash()
+{
+  for (uint16_t i = 0; i < NUM_LED_COLORS; i++)
+  {
+    if (i % 4 == 3) // w
+      led_colours[i] = led_colours[i] == 0 ? 255 : 0;
+    else
+      led_colours[i] = 0;
+  }
+}
+
+void alarm_sunrise()
+{
+  // for now, flash
+  alarm_flash();
 }
