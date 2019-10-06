@@ -27,8 +27,15 @@
 
 #define ALARM_FILE_NAME "sys_alarms.json"
 #define ALARM_COUNT 7
-#define NUM_LED_COLORS 288 // Leds * channels per led, 72 * 4
+#define NUM_LEDS 72
+#define NUM_LED_COLORS (NUM_LEDS * 4)
 #define DISPLAY_AUTOOFFDELAY 30000
+#define SUNRISE_DURATION (60 * 60 * 1000 / INTERVAL_ALARMVISUALS)
+#define SUNRISE_TICKSPERCOLOUR (SUNRISE_DURATION / 31)
+#define FLASH_ONTICKS 1
+#define FLASH_OFFTICKS 2
+#define FLASH_FLASHES 2
+#define FLASH_PERIODTICKS 10
 
 #define INTERVAL_OTA 1000
 #define INTERVAL_CONNCHECK 5000
@@ -76,13 +83,16 @@ bool colorCycleEnabled = false;
 bool displayAutoOff = false;
 bool displayOn = true;
 bool displayRefreshNeeded = false;
+bool sunriseComplete = false;
 bool timeUpdateSuccess = false;
 uint32_t alarming_remainder = 0;
 uint8_t alarming_alarm = ALARM_COUNT;
 uint8_t buttonPressedCount = 0;
 uint16_t colourCycle_currentIndex = 0;
-uint32_t displayLastActivity = 0;
 int32_t connectionRetryCount = 1;
+uint32_t displayLastActivity = 0;
+uint8_t flashCounter = 0;
+uint32_t sunriseRemaining = 0;
 uint8_t torching = 0;
 
 uint32_t last_OTA = 0;
@@ -595,7 +605,8 @@ void display_refresh()
 {
   if (displayAutoOff)
   {
-    if (displayOn) {
+    if (displayOn)
+    {
       if (millis() > displayLastActivity + DISPLAY_AUTOOFFDELAY)
       {
         displayOn = false;
@@ -604,13 +615,15 @@ void display_refresh()
     }
     else
     {
-      if (millis() < displayLastActivity + DISPLAY_AUTOOFFDELAY){
+      if (millis() < displayLastActivity + DISPLAY_AUTOOFFDELAY)
+      {
         displayOn = true;
         screen->reinitialise();
       }
     }
   }
-  else if (!displayOn){
+  else if (!displayOn)
+  {
     displayOn = true;
     screen->reinitialise();
   }
@@ -943,8 +956,20 @@ void setTorch()
         led_colours[i] = 128;
     }
     break;
+  case 20:
+    for (int i = 0; i < NUM_LED_COLORS; i++)
+    {
+      if (i % 4 == 0) // g
+        led_colours[i] = 255;
+      if (i % 4 == 1) // r
+        led_colours[i] = 127;
+      if (i % 4 == 2) // b
+        led_colours[i] = 218;
+      if (i % 4 == 3) // w
+        led_colours[i] = 255;
+    }
     // Power supply issues at 100%
-    // case 20:
+    // case 22:
     //   for (int i = 0; i < NUM_LED_COLORS; i++)
     //   {
     //       led_colours[i] = 255;
@@ -958,17 +983,80 @@ void setTorch()
 
 void alarm_flash()
 {
-  for (uint16_t i = 0; i < NUM_LED_COLORS; i++)
+  uint8_t flash = 0;
+
+  for (uint8_t i = 0; i < FLASH_FLASHES; i++)
   {
-    if (i % 4 == 3) // w
-      led_colours[i] = led_colours[i] == 0 ? 255 : 0;
-    else
-      led_colours[i] = 0;
+    uint8_t start = i * (FLASH_ONTICKS + FLASH_OFFTICKS);
+
+    if (flashCounter == start)
+      flash = 1;
+    if (flashCounter == start + FLASH_ONTICKS)
+      flash = 2;
   }
+
+  if (flash)
+    for (uint16_t i = 0; i < NUM_LED_COLORS; i++)
+    {
+      if (i % 4 == 3) // w
+        led_colours[i] = flash == 1 ? 255 : 0;
+      else
+        led_colours[i] = 0;
+    }
+
+  ++flashCounter %= FLASH_PERIODTICKS;
 }
 
 void alarm_sunrise()
 {
-  // for now, flash
-  alarm_flash();
+  if (!sunriseRemaining && !sunriseComplete)
+  {
+    sunriseRemaining = SUNRISE_DURATION;
+    resetLeds();
+    //Serial.printf("Sunrse triggered, duration %d\r\n", sunriseRemaining);
+  }
+
+  if (!sunriseComplete)
+  {
+    uint32_t currentTime = SUNRISE_DURATION - sunriseRemaining;
+    uint8_t currentColourIndex = currentTime / SUNRISE_TICKSPERCOLOUR;
+
+    uint32_t currentColourStartTime = currentColourIndex * SUNRISE_TICKSPERCOLOUR;
+    uint32_t nextColourStartTime = currentColourStartTime + SUNRISE_TICKSPERCOLOUR;
+
+    //Serial.printf("sr: %d, ct: %d, cci:  %d, ccst: %d, ncst: %d\r\n", sunriseRemaining, currentTime, currentColourIndex, currentColourStartTime, nextColourStartTime);
+
+    for (uint8_t i = 0; i < 4; i++)
+    {
+      uint32_t startColour = sunrise_colours[currentColourIndex][i];
+      startColour <<= 2;
+      uint32_t endColour = sunrise_colours[currentColourIndex < 30 ? currentColourIndex + 1 : 30][i];
+      endColour = (endColour << 2) + 3;
+
+      uint32_t targetColour = 0;
+      targetColour += startColour * (nextColourStartTime - currentTime);
+      targetColour += endColour * (currentTime - currentColourStartTime);
+      targetColour /= nextColourStartTime - currentColourStartTime;
+
+      uint8_t targetLeds = targetColour & 3;
+      targetColour >>= 2;
+      //Serial.printf("i: %d, sc: %d, ec:  %d, tc: %d, tl: %d\r\n", i, startColour, endColour, targetColour, targetLeds);
+
+      for (uint16_t ci = i; ci < NUM_LED_COLORS; ci += 4)
+      {
+        if ((ci / 4) % 4 <= targetLeds)
+          led_colours[ci] = targetColour;
+      }
+    }
+
+    if (sunriseRemaining)
+      sunriseRemaining--;
+    else
+      sunriseComplete = true;
+  }
+
+  if (alarming_remainder * INTERVAL_ALARMCHECK < (15 * 60 * 1000))
+  {
+    alarm_flash();
+  }
 }
