@@ -28,6 +28,7 @@
 #define ALARM_FILE_NAME "sys_alarms.json"
 #define ALARM_COUNT 7
 #define NUM_LED_COLORS 288 // Leds * channels per led, 72 * 4
+#define DISPLAY_AUTOOFFDELAY 30000
 
 #define INTERVAL_OTA 1000
 #define INTERVAL_CONNCHECK 5000
@@ -68,17 +69,21 @@ WebServer webserver(&server);
 //G, R, B, W
 uint8_t led_colours[NUM_LED_COLORS];
 
+bool alarming = false;
 bool activityPixelState = false;
+volatile bool buttonPressed = false;
 bool colorCycleEnabled = false;
+bool displayAutoOff = false;
+bool displayOn = true;
 bool displayRefreshNeeded = false;
 bool timeUpdateSuccess = false;
-bool alarming = false;
 uint32_t alarming_remainder = 0;
 uint8_t alarming_alarm = ALARM_COUNT;
-int connectionRetryCount = 1;
-uint16_t colourCycle_currentIndex = 0;
-volatile bool buttonPressed = false;
 uint8_t buttonPressedCount = 0;
+uint16_t colourCycle_currentIndex = 0;
+uint32_t displayLastActivity = 0;
+int32_t connectionRetryCount = 1;
+uint8_t torching = 0;
 
 uint32_t last_OTA = 0;
 uint32_t last_ConnCheck = 0;
@@ -421,6 +426,12 @@ void colour_cycle()
 void time_update()
 {
   timeUpdateSuccess = timeClient.update();
+
+  if (timeClient.getHours() <= 6 || timeClient.getHours() >= 21) // 9pm - 6am
+    displayAutoOff = true;
+  else
+    displayAutoOff = false;
+
   last_timeUpdate = millis();
 }
 void time_draw()
@@ -534,8 +545,6 @@ void alarm_visuals()
 
   last_alarmVisuals = millis();
 }
-
-int torching = 0;
 void button_check()
 {
   if (buttonPressed)
@@ -547,6 +556,7 @@ void button_check()
 
   if (buttonPressedCount)
   {
+    displayLastActivity = millis();
     SSD1306_Utils::write_char(screen, 109, 12, icon_font, (char)Icons::Button);
     SSD1306_Utils::write_string(screen, 109, 24, small_font, String(buttonPressedCount));
   }
@@ -583,8 +593,32 @@ void button_check()
 }
 void display_refresh()
 {
-  if (displayRefreshNeeded)
+  if (displayAutoOff)
+  {
+    if (displayOn) {
+      if (millis() > displayLastActivity + DISPLAY_AUTOOFFDELAY)
+      {
+        displayOn = false;
+        screen->display_off();
+      }
+    }
+    else
+    {
+      if (millis() < displayLastActivity + DISPLAY_AUTOOFFDELAY){
+        displayOn = true;
+        screen->reinitialise();
+      }
+    }
+  }
+  else if (!displayOn){
+    displayOn = true;
+    screen->reinitialise();
+  }
+
+  if (displayRefreshNeeded && displayOn)
     screen->refresh();
+
+  displayRefreshNeeded = false;
 
   last_displayRefresh = millis();
 }
@@ -786,7 +820,7 @@ void setTorch()
   case 1:
     for (int i = 0; i < NUM_LED_COLORS; i++)
     {
-      if ((i / 4) % 3 == 0) // every 3rd led
+      if ((i / 4) % 6 == 0) // every 6th led
       {
         if (i % 4 == 3) // white only
           led_colours[i] = 1;

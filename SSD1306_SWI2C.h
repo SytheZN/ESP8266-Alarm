@@ -39,6 +39,8 @@ class SSD1306
     void    clear_buffer();
     void    blank();
     void    refresh();
+    void    reinitialise();
+    void    display_off();
     
   private:
     void    twi_init();
