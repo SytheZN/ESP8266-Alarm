@@ -31,7 +31,7 @@
 #define NUM_LED_COLORS (NUM_LEDS * 4)
 #define DISPLAY_AUTOOFFDELAY 30000
 #define SUNRISE_DURATION (60 * 60 * 1000 / INTERVAL_ALARMVISUALS)
-#define SUNRISE_TICKSPERCOLOUR (SUNRISE_DURATION / 31)
+#define SUNRISE_TICKSPERCOLOUR (SUNRISE_DURATION / 30)
 #define FLASH_ONTICKS 1
 #define FLASH_OFFTICKS 2
 #define FLASH_FLASHES 2
@@ -549,6 +549,8 @@ void alarm_visuals()
   else if (alarming_alarm != ALARM_COUNT) // end of the alarm (no longer alarming but not reset)
   {
     resetLeds();
+    sunriseComplete = false;
+    sunriseRemaining = 0;
 
     alarming_alarm = ALARM_COUNT;
   }
@@ -1049,10 +1051,11 @@ void alarm_sunrise()
       }
     }
 
-    if (sunriseRemaining)
-      sunriseRemaining--;
-    else
+    if (!--sunriseRemaining)
+    {
+      sunriseRemaining = 1;
       sunriseComplete = true;
+    }
   }
 
   if (alarming_remainder * INTERVAL_ALARMCHECK < (15 * 60 * 1000))
