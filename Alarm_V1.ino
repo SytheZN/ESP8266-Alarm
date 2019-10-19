@@ -285,7 +285,7 @@ void setup_ota()
 }
 void setup_webserver()
 {
-  GetMethods = new ApiMethod[3];
+  GetMethods = new ApiMethod[4];
 
   GetMethods[0].Path = "admin/cycle";
   GetMethods[0].Callback = api_getColourCycle;
@@ -296,7 +296,10 @@ void setup_webserver()
   GetMethods[2].Path = "alarms";
   GetMethods[2].Callback = api_getAlarms;
 
-  webserver.SetGetHandlers(GetMethods, 3);
+  GetMethods[3].Path = "debug/state";
+  GetMethods[3].Callback = api_getState;
+
+  webserver.SetGetHandlers(GetMethods, 4);
 
   PostMethods = new ApiMethod[7];
 
@@ -331,40 +334,40 @@ ICACHE_RAM_ATTR void isr_buttonStateChange()
 void loop()
 {
   uint32_t now = millis();
-  if (last_ConnCheck + INTERVAL_CONNCHECK < now)
+  if (now - last_ConnCheck > INTERVAL_CONNCHECK)
     check_connectivity();
 
-  if (last_pixelBlink + INTERVAL_PIXELBLINK < now)
+  if (now - last_pixelBlink > INTERVAL_PIXELBLINK)
     pixel_blink();
 
-  if (last_OTA + INTERVAL_OTA < now)
+  if (now - last_OTA + INTERVAL_OTA)
     check_ota();
 
-  if (last_colorCycle + INTERVAL_COLOURCYCLE < now)
+  if (now - last_colorCycle > INTERVAL_COLOURCYCLE)
     colour_cycle();
 
-  if (last_timeUpdate + INTERVAL_TIMEUPDATE < now)
+  if (now - last_timeUpdate > INTERVAL_TIMEUPDATE)
     time_update();
 
-  if (last_timeDraw + INTERVAL_TIMEDRAW < now)
+  if (now - last_timeDraw > INTERVAL_TIMEDRAW)
     time_draw();
 
-  if (last_alarmCheck + INTERVAL_ALARMCHECK < now)
+  if (now - last_alarmCheck > INTERVAL_ALARMCHECK)
     check_alarms();
 
-  if (last_alarmVisuals + INTERVAL_ALARMVISUALS < now)
+  if (now - last_alarmVisuals > INTERVAL_ALARMVISUALS)
     alarm_visuals();
 
-  if (last_webServerUpdate + INTERVAL_WEBSERVER < now)
+  if (now - last_webServerUpdate > INTERVAL_WEBSERVER)
     check_webserver();
 
-  if (last_ledUpdate + INTERVAL_LEDUPDATE < now)
+  if (now - last_ledUpdate > INTERVAL_LEDUPDATE)
     led_update();
 
-  if (last_buttonCheck + INTERVAL_BUTTONCHECK < now)
+  if (now - last_buttonCheck > INTERVAL_BUTTONCHECK)
     button_check();
 
-  if (last_displayRefresh + INTERVAL_DISPLAYREFRESH < now)
+  if (now - last_displayRefresh > INTERVAL_DISPLAYREFRESH)
     display_refresh();
 }
 void check_connectivity()
@@ -768,6 +771,13 @@ ApiMethodResponse api_setAlarms(String &requestBody)
 
   return response;
 }
+ApiMethodResponse api_getState(String &requestBody)
+{
+  ApiMethodResponse response;
+  response.Body = serializeState();
+  response.Type = ResponseType::Json;
+  return response;
+}
 
 void deserializeAlarms(String &json)
 {
@@ -1062,4 +1072,61 @@ void alarm_sunrise()
   {
     alarm_flash();
   }
+}
+
+String serializeState()
+{
+  const size_t capacity = 2 * JSON_OBJECT_SIZE(2) + 3 * JSON_OBJECT_SIZE(3) + JSON_OBJECT_SIZE(4) + JSON_OBJECT_SIZE(5) + 2 * JSON_OBJECT_SIZE(8);
+  DynamicJsonDocument doc(capacity);
+
+  JsonObject general = doc.createNestedObject("general");
+  general["last_OTA"] = last_OTA;
+  general["last_webServerUpdate"] = last_webServerUpdate;
+  general["last_ledUpdate"] = last_ledUpdate;
+  
+  JsonObject conn = doc.createNestedObject("conn");
+  conn["last_ConnCheck"] = last_ConnCheck;
+  conn["connectionRetryCount"] = connectionRetryCount;
+  
+  JsonObject display = doc.createNestedObject("display");
+  display["last_displayRefresh"] = last_displayRefresh;
+  display["displayRefreshNeeded"] = displayRefreshNeeded;
+  display["displayAutoOff"] = displayAutoOff;
+  display["displayLastActivity"] = displayLastActivity;
+  display["displayOn"] = displayOn;
+  
+  JsonObject pixel = doc.createNestedObject("pixel");
+  pixel["last_pixelBlink"] = last_pixelBlink;
+  pixel["activityPixelState"] = activityPixelState;
+  
+  JsonObject time = doc.createNestedObject("time");
+  time["last_timeUpdate"] = last_timeUpdate;
+  time["timeUpdateSuccess"] = timeUpdateSuccess;
+  time["last_timeDraw"] = last_timeDraw;
+  
+  JsonObject alarm = doc.createNestedObject("alarm");
+  alarm["last_alarmCheck"] = last_alarmCheck;
+  alarm["alarming"] = alarming;
+  alarm["alarming_remainder"] = alarming_remainder;
+  alarm["alarming_alarm"] = alarming_alarm;
+  alarm["last_alarmVisuals"] = last_alarmVisuals;
+  alarm["sunriseRemaining"] = sunriseRemaining;
+  alarm["sunriseComplete"] = sunriseComplete;
+  alarm["flashCounter"] = flashCounter;
+  
+  JsonObject colourCycle = doc.createNestedObject("colourCycle");
+  colourCycle["last_colorCycle"] = last_colorCycle;
+  colourCycle["colorCycleEnabled"] = colorCycleEnabled;
+  colourCycle["colourCycle_currentIndex"] = colourCycle_currentIndex;
+  
+  JsonObject button = doc.createNestedObject("button");
+  button["last_buttonCheck"] = last_buttonCheck;
+  button["buttonPressed"] = buttonPressed;
+  button["buttonPressedCount"] = buttonPressedCount;
+  button["torching"] = torching;
+
+  String json;
+  serializeJson(doc, json);
+
+  return json;
 }
