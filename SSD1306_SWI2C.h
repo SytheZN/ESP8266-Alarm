@@ -40,6 +40,7 @@ class SSD1306
     void    blank();
     void    refresh();
     void    reinitialise();
+    void    resynchronize();
     void    display_off();
     
   private:

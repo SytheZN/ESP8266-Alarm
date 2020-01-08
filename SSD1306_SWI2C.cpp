@@ -146,6 +146,23 @@ void SSD1306::reinitialise()
   display_init();
 }
 
+void SSD1306::resynchronize()
+{
+  twi_start();
+
+  twi_send(CB_CTRL);
+  twi_send(CMD_ADDR_HVCOL);
+  twi_send(0x00); //start address
+  twi_send(0x7F); //stop address
+
+  twi_send(CB_CTRL);
+  twi_send(CMD_ADDR_HVPAGE);
+  twi_send(0x00); //start page
+  twi_send(0x07); //stop page
+
+  twi_stop();
+}
+
 void SSD1306::display_off()
 {
   twi_start();

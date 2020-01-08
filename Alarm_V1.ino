@@ -91,7 +91,7 @@ uint8_t buttonPressedCount = 0;
 uint16_t colourCycle_currentIndex = 0;
 int32_t connectionRetryCount = 1;
 uint32_t displayLastActivity = 0;
-uint8_t displayInitCounter = 0;
+uint8_t displayResyncCounter = 0;
 uint8_t flashCounter = 0;
 uint32_t sunriseRemaining = 0;
 uint8_t torching = 0;
@@ -634,13 +634,13 @@ void display_refresh()
     screen->reinitialise();
   }
 
-  if (displayInitCounter == 0 && displayOn)
-    screen->reinitialise();
+  if (displayResyncCounter == 0 && displayOn)
+    screen->resynchronize();
   if (displayRefreshNeeded && displayOn)
     screen->refresh();
 
   displayRefreshNeeded = false;
-  displayInitCounter++;
+  displayResyncCounter++;
   last_displayRefresh = millis();
 }
 
