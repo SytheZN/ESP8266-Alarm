@@ -91,6 +91,7 @@ uint8_t buttonPressedCount = 0;
 uint16_t colourCycle_currentIndex = 0;
 int32_t connectionRetryCount = 1;
 uint32_t displayLastActivity = 0;
+uint8_t displayInitCounter = 0;
 uint8_t flashCounter = 0;
 uint32_t sunriseRemaining = 0;
 uint8_t torching = 0;
@@ -633,11 +634,13 @@ void display_refresh()
     screen->reinitialise();
   }
 
+  if (displayInitCounter == 0 && displayOn)
+    screen->reinitialise();
   if (displayRefreshNeeded && displayOn)
     screen->refresh();
 
   displayRefreshNeeded = false;
-
+  displayInitCounter++;
   last_displayRefresh = millis();
 }
 
@@ -1076,54 +1079,39 @@ void alarm_sunrise()
 
 String serializeState()
 {
-  const size_t capacity = 2 * JSON_OBJECT_SIZE(2) + 3 * JSON_OBJECT_SIZE(3) + JSON_OBJECT_SIZE(4) + JSON_OBJECT_SIZE(5) + 2 * JSON_OBJECT_SIZE(8);
+  const size_t capacity = JSON_OBJECT_SIZE(30);
   DynamicJsonDocument doc(capacity);
 
-  JsonObject general = doc.createNestedObject("general");
-  general["last_OTA"] = last_OTA;
-  general["last_webServerUpdate"] = last_webServerUpdate;
-  general["last_ledUpdate"] = last_ledUpdate;
-  
-  JsonObject conn = doc.createNestedObject("conn");
-  conn["last_ConnCheck"] = last_ConnCheck;
-  conn["connectionRetryCount"] = connectionRetryCount;
-  
-  JsonObject display = doc.createNestedObject("display");
-  display["last_displayRefresh"] = last_displayRefresh;
-  display["displayRefreshNeeded"] = displayRefreshNeeded;
-  display["displayAutoOff"] = displayAutoOff;
-  display["displayLastActivity"] = displayLastActivity;
-  display["displayOn"] = displayOn;
-  
-  JsonObject pixel = doc.createNestedObject("pixel");
-  pixel["last_pixelBlink"] = last_pixelBlink;
-  pixel["activityPixelState"] = activityPixelState;
-  
-  JsonObject time = doc.createNestedObject("time");
-  time["last_timeUpdate"] = last_timeUpdate;
-  time["timeUpdateSuccess"] = timeUpdateSuccess;
-  time["last_timeDraw"] = last_timeDraw;
-  
-  JsonObject alarm = doc.createNestedObject("alarm");
-  alarm["last_alarmCheck"] = last_alarmCheck;
-  alarm["alarming"] = alarming;
-  alarm["alarming_remainder"] = alarming_remainder;
-  alarm["alarming_alarm"] = alarming_alarm;
-  alarm["last_alarmVisuals"] = last_alarmVisuals;
-  alarm["sunriseRemaining"] = sunriseRemaining;
-  alarm["sunriseComplete"] = sunriseComplete;
-  alarm["flashCounter"] = flashCounter;
-  
-  JsonObject colourCycle = doc.createNestedObject("colourCycle");
-  colourCycle["last_colorCycle"] = last_colorCycle;
-  colourCycle["colorCycleEnabled"] = colorCycleEnabled;
-  colourCycle["colourCycle_currentIndex"] = colourCycle_currentIndex;
-  
-  JsonObject button = doc.createNestedObject("button");
-  button["last_buttonCheck"] = last_buttonCheck;
-  button["buttonPressed"] = buttonPressed;
-  button["buttonPressedCount"] = buttonPressedCount;
-  button["torching"] = torching;
+  doc["last_OTA"] = last_OTA;
+  doc["last_webServerUpdate"] = last_webServerUpdate;
+  doc["last_ledUpdate"] = last_ledUpdate;
+  doc["last_ConnCheck"] = last_ConnCheck;
+  doc["connectionRetryCount"] = connectionRetryCount;
+  doc["last_displayRefresh"] = last_displayRefresh;
+  doc["displayRefreshNeeded"] = displayRefreshNeeded;
+  doc["displayAutoOff"] = displayAutoOff;
+  doc["displayLastActivity"] = displayLastActivity;
+  doc["displayOn"] = displayOn;
+  doc["last_pixelBlink"] = last_pixelBlink;
+  doc["activityPixelState"] = activityPixelState;
+  doc["last_timeUpdate"] = last_timeUpdate;
+  doc["timeUpdateSuccess"] = timeUpdateSuccess;
+  doc["last_timeDraw"] = last_timeDraw;
+  doc["last_alarmCheck"] = last_alarmCheck;
+  doc["alarming"] = alarming;
+  doc["alarming_remainder"] = alarming_remainder;
+  doc["alarming_alarm"] = alarming_alarm;
+  doc["last_alarmVisuals"] = last_alarmVisuals;
+  doc["sunriseRemaining"] = sunriseRemaining;
+  doc["sunriseComplete"] = sunriseComplete;
+  doc["flashCounter"] = flashCounter;
+  doc["last_colorCycle"] = last_colorCycle;
+  doc["colorCycleEnabled"] = colorCycleEnabled;
+  doc["colourCycle_currentIndex"] = colourCycle_currentIndex;
+  doc["last_buttonCheck"] = last_buttonCheck;
+  doc["buttonPressed"] = buttonPressed;
+  doc["buttonPressedCount"] = buttonPressedCount;
+  doc["torching"] = torching;
 
   String json;
   serializeJson(doc, json);
