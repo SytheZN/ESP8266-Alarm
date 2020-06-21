@@ -50,6 +50,9 @@
 #define INTERVAL_COLOURCYCLE 1
 #define INTERVAL_BUTTONCHECK 100
 
+#define CURRENT_LIMIT_500
+//define CURRENT_LIMIT_2500
+
 // create a WifiPassword.h file that defines WIFI_PASSWORD & declares ssid & pass
 #if __has_include("WifiPassword.h")
 #include "WifiPassword.h"
@@ -127,6 +130,41 @@ public:
 Alarm *alarms = new Alarm[ALARM_COUNT];
 
 // G,R,B,W
+#if defined(CURRENT_LIMIT_500)
+const uint8_t sunrise_colours[31][4] = {
+    {0, 0, 0, 0},
+    {0, 0, 3, 0},
+    {0, 0, 8, 0},
+    {0, 0, 13, 0},
+    {0, 1, 19, 0},
+    {0, 2, 24, 0},
+    {0, 4, 33, 0},
+    {0, 8, 44, 0},
+    {0, 14, 52, 0},
+    {0, 23, 59, 0},
+    {0, 34, 65, 0},
+    {0, 44, 69, 2},
+    {0, 55, 70, 3},
+    {0, 57, 71, 4},
+    {0, 56, 59, 7},
+    {0, 67, 38, 11},
+    {0, 77, 17, 14},
+    {25, 89, 0, 9},
+    {45, 96, 0, 2},
+    {55, 94, 0, 4},
+    {47, 75, 0, 19},
+    {43, 51, 0, 33},
+    {30, 26, 0, 46},
+    {15, 4, 0, 57},
+    {14, 1, 12, 58},
+    {14, 1, 26, 58},
+    {18, 1, 32, 69},
+    {22, 0, 37, 83},
+    {31, 1, 46, 98},
+    {39, 0, 54, 117},
+    {52, 2, 67, 138},
+};
+#else
 const uint8_t sunrise_colours[31][4] = {
     {0, 0, 0, 0},
     {0, 0, 9, 0},
@@ -160,6 +198,7 @@ const uint8_t sunrise_colours[31][4] = {
     {121, 0, 118, 246},
     {255, 127, 218, 255},
 };
+#endif
 
 void setup()
 {
@@ -311,7 +350,7 @@ void setup_webserver()
   PostMethods[1].Callback = api_toggleColourCycle;
 
   PostMethods[2].Path = "admin/resetleds";
-  PostMethods[2].Callback = api_resetColour;
+  PostMethods[2].Callback = api_resetLeds;
 
   PostMethods[3].Path = "admin/leds";
   PostMethods[3].Callback = api_setLeds;
@@ -335,40 +374,41 @@ ICACHE_RAM_ATTR void isr_buttonStateChange()
 void loop()
 {
   uint32_t now = millis();
-  if (now - last_ConnCheck > INTERVAL_CONNCHECK)
+
+  if (now - last_ConnCheck >= INTERVAL_CONNCHECK)
     check_connectivity();
 
-  if (now - last_pixelBlink > INTERVAL_PIXELBLINK)
+  if (now - last_pixelBlink >= INTERVAL_PIXELBLINK)
     pixel_blink();
 
-  if (now - last_OTA + INTERVAL_OTA)
+  if (now - last_OTA >= INTERVAL_OTA)
     check_ota();
 
-  if (now - last_colorCycle > INTERVAL_COLOURCYCLE)
+  if (now - last_colorCycle >= INTERVAL_COLOURCYCLE)
     colour_cycle();
 
-  if (now - last_timeUpdate > INTERVAL_TIMEUPDATE)
+  if (now - last_timeUpdate >= INTERVAL_TIMEUPDATE)
     time_update();
 
-  if (now - last_timeDraw > INTERVAL_TIMEDRAW)
+  if (now - last_timeDraw >= INTERVAL_TIMEDRAW)
     time_draw();
 
-  if (now - last_alarmCheck > INTERVAL_ALARMCHECK)
+  if (now - last_alarmCheck >= INTERVAL_ALARMCHECK)
     check_alarms();
 
-  if (now - last_alarmVisuals > INTERVAL_ALARMVISUALS)
+  if (now - last_alarmVisuals >= INTERVAL_ALARMVISUALS)
     alarm_visuals();
 
-  if (now - last_webServerUpdate > INTERVAL_WEBSERVER)
+  if (now - last_webServerUpdate >= INTERVAL_WEBSERVER)
     check_webserver();
 
-  if (now - last_ledUpdate > INTERVAL_LEDUPDATE)
+  if (now - last_ledUpdate >= INTERVAL_LEDUPDATE)
     led_update();
 
-  if (now - last_buttonCheck > INTERVAL_BUTTONCHECK)
+  if (now - last_buttonCheck >= INTERVAL_BUTTONCHECK)
     button_check();
 
-  if (now - last_displayRefresh > INTERVAL_DISPLAYREFRESH)
+  if (now - last_displayRefresh >= INTERVAL_DISPLAYREFRESH)
     display_refresh();
 }
 void check_connectivity()
@@ -593,12 +633,12 @@ void button_check()
   }
   else
   {
-    if (buttonPressedCount == 1)
+    if (buttonPressedCount == 3 && torching) // 300ms, reset torch
     {
       resetLeds();
       torching = 0;
     }
-    if (buttonPressedCount && buttonPressedCount % 5 == 0)
+    if (buttonPressedCount && buttonPressedCount % 5 == 0) // every 500ms, increment torch
     {
       torching++;
       setTorch();
@@ -663,7 +703,7 @@ ApiMethodResponse api_toggleColourCycle(String &requestBody)
 
   return ApiMethodResponse();
 }
-ApiMethodResponse api_resetColour(String &requestBody)
+ApiMethodResponse api_resetLeds(String &requestBody)
 {
   resetLeds();
 
@@ -739,9 +779,9 @@ ApiMethodResponse api_setLeds(String &requestBody)
   }
 
   JsonArray leds = doc["leds"];
-  for (uint8_t i = 0; i < 3; i++)
+  for (uint8_t i = 0; i < NUM_LEDS; i++)
   {
-    auto led = leds[i];
+    auto led = leds[i % 3];
 
     int leds_r = led["r"];
     int leds_g = led["g"];
@@ -841,6 +881,12 @@ void resetLeds()
     led_colours[i] = 0;
 }
 
+//LED Pattern
+//   1-18 inside
+//  19-36 outside
+//  37-54 inside
+//  55-72 outside
+
 void setTorch()
 {
   switch (torching)
@@ -848,10 +894,21 @@ void setTorch()
   case 1:
     for (int i = 0; i < NUM_LED_COLORS; i++)
     {
-      if ((i / 4) % 6 == 0) // every 6th led
+      if (
+        (i / 72 == 0) // inside a
+        && (i % 4 == 3) // white only
+        && ((i / 4) % 3 == 0) // every third
+      ) 
       {
-        if (i % 4 == 3) // white only
-          led_colours[i] = 1;
+        led_colours[i] = 1;
+      }
+      else if (
+        (i / 72 == 2) // inside b
+        && (i % 4 == 3) // white only
+        && ((i / 4) % 3 == 1) // every third shifted by 1
+      ) 
+      {
+        led_colours[i] = 1;
       }
       else
         led_colours[i] = 0;
@@ -861,10 +918,13 @@ void setTorch()
   case 2:
     for (int i = 0; i < NUM_LED_COLORS; i++)
     {
-      if ((i / 4) % 2 == 0) // every 2nd led
+      if (
+        (i / 72 == 0 || i / 72 == 2) // inside only
+        && (i % 4 == 3) // white only
+        && ((i / 4) % 2 == 0) // every second
+      ) 
       {
-        if (i % 4 == 3) // white only
-          led_colours[i] = 1;
+        led_colours[i] = 1;
       }
       else
         led_colours[i] = 0;
@@ -873,18 +933,34 @@ void setTorch()
   case 3:
     for (int i = 0; i < NUM_LED_COLORS; i++)
     {
-      if (i % 4 == 3) // white only
+      if (
+        (i / 72 == 0 || i / 72 == 2) // inside only
+        && (i % 4 == 3) // white only
+      ) 
+      {
         led_colours[i] = 1;
+      }
       else
         led_colours[i] = 0;
     }
     break;
-
   case 4:
     for (int i = 0; i < NUM_LED_COLORS; i++)
     {
-      if (i % 4 == 3) // white only
-        led_colours[i] = 3;
+      if (
+        (
+          (i / 72 == 0 || i / 72 == 2) // inside only
+          && (i % 4 == 3) // white only
+        ) 
+        ||
+        (
+          (i % 4 == 3) // white only
+          && ((i / 4) % 2 == 0) // every second
+        )  
+      ) 
+      {
+        led_colours[i] = 1;
+      }
       else
         led_colours[i] = 0;
     }
@@ -893,7 +969,7 @@ void setTorch()
     for (int i = 0; i < NUM_LED_COLORS; i++)
     {
       if (i % 4 == 3) // white only
-        led_colours[i] = 5;
+        led_colours[i] = 1;
       else
         led_colours[i] = 0;
     }
@@ -901,8 +977,17 @@ void setTorch()
   case 6:
     for (int i = 0; i < NUM_LED_COLORS; i++)
     {
-      if (i % 4 == 3) // white only
-        led_colours[i] = 10;
+      if (
+        (i / 72 == 0 || i / 72 == 2) // inside only
+        && (i % 4 == 3) // white only
+      ) 
+      {
+        led_colours[i] = 2;
+      }
+      else if (i % 4 == 3) // white only)
+      {
+        led_colours[i] = 1;
+      }
       else
         led_colours[i] = 0;
     }
@@ -911,7 +996,7 @@ void setTorch()
     for (int i = 0; i < NUM_LED_COLORS; i++)
     {
       if (i % 4 == 3) // white only
-        led_colours[i] = 20;
+        led_colours[i] = 3;
       else
         led_colours[i] = 0;
     }
@@ -920,7 +1005,7 @@ void setTorch()
     for (int i = 0; i < NUM_LED_COLORS; i++)
     {
       if (i % 4 == 3) // white only
-        led_colours[i] = 64;
+        led_colours[i] = 5;
       else
         led_colours[i] = 0;
     }
@@ -929,7 +1014,7 @@ void setTorch()
     for (int i = 0; i < NUM_LED_COLORS; i++)
     {
       if (i % 4 == 3) // white only
-        led_colours[i] = 128;
+        led_colours[i] = 10;
       else
         led_colours[i] = 0;
     }
@@ -938,13 +1023,45 @@ void setTorch()
     for (int i = 0; i < NUM_LED_COLORS; i++)
     {
       if (i % 4 == 3) // white only
+        led_colours[i] = 20;
+      else
+        led_colours[i] = 0;
+    }
+    break;
+  case 11:
+    for (int i = 0; i < NUM_LED_COLORS; i++)
+    {
+      if (i % 4 == 3) // white only
+        led_colours[i] = 64;
+      else
+        led_colours[i] = 0;
+    }
+    break;
+  case 12:
+    for (int i = 0; i < NUM_LED_COLORS; i++)
+    {
+      if (i % 4 == 3) // white only
+        led_colours[i] = 128;
+      else
+        led_colours[i] = 0;
+    }
+    break;
+  case 13:
+    for (int i = 0; i < NUM_LED_COLORS; i++)
+    {
+      if (i % 4 == 3) // white only
+#if defined(CURRENT_LIMIT_500)
+        led_colours[i] = 192;
+#else
         led_colours[i] = 255;
+#endif
       else
         led_colours[i] = 0;
     }
     break;
 
-  case 14:
+#if !defined(CURRENT_LIMIT_500)
+  case 17:
     for (int i = 0; i < NUM_LED_COLORS; i++)
     {
       if (i % 4 == 3) // white only
@@ -953,7 +1070,7 @@ void setTorch()
         led_colours[i] = 32;
     }
     break;
-  case 16:
+  case 19:
     for (int i = 0; i < NUM_LED_COLORS; i++)
     {
       if (i % 4 == 3) // white only
@@ -962,7 +1079,7 @@ void setTorch()
         led_colours[i] = 64;
     }
     break;
-  case 18:
+  case 21:
     for (int i = 0; i < NUM_LED_COLORS; i++)
     {
       if (i % 4 == 3) // white only
@@ -971,7 +1088,7 @@ void setTorch()
         led_colours[i] = 128;
     }
     break;
-  case 20:
+  case 23:
     for (int i = 0; i < NUM_LED_COLORS; i++)
     {
       if (i % 4 == 0) // g
@@ -983,13 +1100,16 @@ void setTorch()
       if (i % 4 == 3) // w
         led_colours[i] = 255;
     }
-    // Power supply issues at 100%
-    // case 22:
-    //   for (int i = 0; i < NUM_LED_COLORS; i++)
-    //   {
-    //       led_colours[i] = 255;
-    //   }
-    //   break;
+    break;
+#endif
+#if !defined(CURRENT_LIMIT_500) && !defined(CURRENT_LIMIT_2500)
+  case 24:
+    for (int i = 0; i < NUM_LED_COLORS; i++)
+    {
+        led_colours[i] = 255;
+    }
+    break;
+#endif
 
   default:
     break;
@@ -1014,7 +1134,13 @@ void alarm_flash()
     for (uint16_t i = 0; i < NUM_LED_COLORS; i++)
     {
       if (i % 4 == 3) // w
-        led_colours[i] = flash == 1 ? 255 : 0;
+        led_colours[i] = flash == 1 ? 
+#if defined(CURRENT_LIMIT_500)
+        192
+#else
+        255 
+#endif
+        : 0;
       else
         led_colours[i] = 0;
     }
@@ -1079,9 +1205,10 @@ void alarm_sunrise()
 
 String serializeState()
 {
-  const size_t capacity = JSON_OBJECT_SIZE(30);
+  const size_t capacity = JSON_OBJECT_SIZE(31);
   DynamicJsonDocument doc(capacity);
 
+  doc["millis"] = millis();
   doc["last_OTA"] = last_OTA;
   doc["last_webServerUpdate"] = last_webServerUpdate;
   doc["last_ledUpdate"] = last_ledUpdate;
