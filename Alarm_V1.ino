@@ -794,6 +794,8 @@ ApiMethodResponse api_setLeds(String &requestBody)
     led_colours[(i * 4) + 2] = leds_b;
     led_colours[(i * 4) + 3] = leds_w;
     Serial.printf("%d, %d, %d, %d\r\n", leds_r, leds_g, leds_b, leds_w);
+
+    torching = 1;
   }
 
   return response;
